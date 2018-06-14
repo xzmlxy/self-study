@@ -1,6 +1,53 @@
 
     
-    Python文本相似度实战——基于gensim和nltk库
-    sklearn文本分类记录【1】 官方文档  
-    使用gensim和sklearn搭建一个文本分类器【1】
-    gensim官方文档 https://radimrehurek.com/gensim/tutorial.html
+  def find_position(num_list, num):
+    if len(num_list) == 0:
+        return 0
+    i = 0
+    j = len(num_list) - 1
+    if num <= num_list[i]:
+        return i
+    if num >= num_list[j]:
+        return len(num_list)
+    while j - i > 1:
+        mid = int((i + j) / 2)
+        if num < num_list[mid]:
+            j = mid
+        elif num == num_list[mid]:
+            if mid % 2 == 1:
+                return mid + 1
+            else:
+                return mid
+        else:
+            i = mid
+    return j
+
+
+def find132pattern(nums):
+    if len(nums) < 3:
+        return False
+    sections = []
+    section_start = nums[0]
+    section_start_position = 0
+    for num in nums[1:]:
+        new_position = find_position(sections, num)
+        if new_position % 2 == 1:
+            return True
+        if num > section_start:
+            if new_position == 0:
+                sections.insert(0, section_start)
+                sections.insert(1, num)
+                section_start_position += 1
+            else:
+                sections = sections[0:section_start_position]
+                section2 = sections[new_position:]
+                if section_start != last:
+                    sections.append(section_start)
+                sections.append(num)
+                sections.extend(section2)
+                print(sections)
+            last = num
+        else:
+            section_start_position = new_position
+        section_start = num
+    return False
