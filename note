@@ -1,0 +1,36 @@
+def findCheapestPrice(n, flights, src, dst, K):
+    """
+    :type n: int
+    :type flights: List[List[int]]
+    :type src: int
+    :type dst: int
+    :type K: int
+    :rtype: int
+    """
+    temp_result = 10000 * (K + 2)
+    result = temp_result
+    flights_dic = {}
+    for flight in flights:
+        if flight[1] in flights_dic:
+            flights_dic[flight[1]].append(flight)
+        else:
+            flights_dic[flight[1]] = [flight]
+    dsts = [[dst, 0]]
+    while K >= 0 and len(dsts) > 0:
+        new_dsts = []
+        for dst in dsts:
+            if dst[1] < result:
+                for flight in flights_dic[dst[0]]:
+                    price = flight[2] + dst[1]
+                    if price < result:
+                        if flight[0] == src:
+                            result = min(result, price)
+                        else:
+
+                            new_dsts.append([flight[0], price])
+        dsts = new_dsts
+        K -= 1
+    if result != temp_result:
+        return result
+    else:
+        return -1
