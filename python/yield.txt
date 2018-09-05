@@ -3,3 +3,4 @@
 send函数必须在启动迭代器后才可使用，它不仅会set值还会在set之后运行一遍函数，即执行一次next()。
 
 https://www.cnblogs.com/vipchenwei/p/7049404.html
+
