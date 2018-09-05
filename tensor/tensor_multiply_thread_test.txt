@@ -1,0 +1,23 @@
+import tensorflow as tf
+
+q = tf.FIFOQueue(5, "float")
+init_q = q.enqueue_many(([0]*5,))
+counter = tf.Variable(0.0, trainable=False)
+enqueue_op = q.enqueue(tf.assign_add(counter, tf.constant(1.0)))
+dequeue_op = q.dequeue()
+qr = tf.train.QueueRunner(q, enqueue_ops=[enqueue_op])
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    sess.run(init_q)
+    coord = tf.train.Coordinator()
+    enqueue_threads = qr.create_threads(sess, coord=coord, start=True)
+    for i in range(0, 500):
+        print(sess.run([counter, dequeue_op]))
+    coord.request_stop()
+    coord.join(enqueue_threads)
+    print(sess.run([counter, dequeue_op]))
+    
+    
+//for中的打印并不是等差的序列，因为enqueue和dequeue在不同的线程中执行。
+//最后打印的可能是500也可能是501?
