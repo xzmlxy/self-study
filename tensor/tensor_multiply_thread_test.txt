@@ -18,6 +18,6 @@ with tf.Session() as sess:
     coord.join(enqueue_threads)
     print(sess.run([counter, dequeue_op]))
     
-    
+ //https://www.jianshu.com/p/d063804fb272  
 //for中的打印并不是等差的序列，因为enqueue和dequeue在不同的线程中执行。
 //最后打印的可能是500也可能是501?
