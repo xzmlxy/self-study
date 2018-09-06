@@ -1,0 +1,14 @@
+dclass A():
+    a = 0
+
+    def __init__(self, test):
+        self.b = test
+
+    @classmethod
+    def test_fun(cls):
+        print(cls.a)
+        print(A.a)
+
+a为类变量而b为成员变量，类似于java中静态变量和成员变量的区别。a可以以A.a的方式使用，而b必须通过实例对象来使用。不同的是，Python具有@classmethod和
+@staticmethod两种装饰器，前者才对应于java中的static方法，而后者不但不能调用普通方法，也没有办法调用静态方法，因为它没有任何入参(但类变量是可以的)。
+
