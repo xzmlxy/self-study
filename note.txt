@@ -8,3 +8,11 @@ en 56.5 94.2
 wu 54.2 90.9
 tai 49.3 88.6
 lu 49.1 81.3
+tai 47.4 90.5
+dan 45.1 87.2
+lang NA NA
+yan 40.3 85.8
+heng 33.7 77.6
+tian NA NA
+xue NA NA
+niu NA NA
