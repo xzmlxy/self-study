@@ -1,14 +1,6 @@
 
 https://www.codetd.com/article/1657882
 
-
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Jun 17 17:44:42 2017
-
-@author: 代码医生 qq群：40016981，公众号：xiangyuejiqiren
-@blog：http://blog.csdn.net/lijin6249
-"""
 import tensorflow as tf
 import numpy as np
 
