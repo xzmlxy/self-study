@@ -63,4 +63,4 @@ while time < train_times:
         time += 1
 # 计算预测值
 print(sess.run(y_pred, feed_dict={x: X}))
-# 输出：已训练100000次
+
