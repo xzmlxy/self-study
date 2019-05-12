@@ -1,0 +1,35 @@
+ARPA语言模型中的概率计算（摘自博客）：
+
+def wordsProbs(words, dict):
+
+    wordArr = words.split(" ")
+
+    if len(wordArr) == 3:
+
+        if dict.has_key(words):
+
+            return dict.get(words).prob
+
+        elif dict.has_key(wordArr[0] + " " + wordArr[1]):
+
+            return dict.get(wordArr[0] + " " + wordArr[1]).backoff + wordsProbs(wordArr[1] + " " + wordArr[2], dict)
+
+        else:
+
+            return wordsProbs(wordArr[1] + " " + wordArr[2], dict)
+
+    elif len(wordArr) == 2:
+
+        if dict.has_key(wordArr[0] + " " + wordArr[1]):
+
+            return dict.get(wordArr[0] + " " + wordArr[1]).prob
+
+        else:
+
+            return dict.get(wordArr[0]).backoff + wordsProbs(wordArr[1], dict) #make sure OOV change to <unk>，or error
+
+    else:
+
+        return dict.get(wordArr[0]).prob #make sure OOV change to <unk>，or error
+ 
+可见相比单独出现后续词，backoff降低了后续词出现的概率（当不存在对应n-gram时）。
