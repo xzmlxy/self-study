@@ -1,1 +1,20 @@
 @Property将私有成员变量的赋值和读取变得更优雅，可以如使用公开成员变量般的方式，使用get、set方法。举例如下：
+在类中添加如下代码：
+ 
+  @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if isinstance(value, basestring):
+            self._name = value
+        else:
+            self._name = 'No name'
+  
+  那么就可以用下代码给成员赋值：
+  
+  类实例.name = 'dog'
+  
+  这样既保持了代码的简洁优雅，又可以在需要时添加额外的set、get逻辑。
+
