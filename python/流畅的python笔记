@@ -9,3 +9,6 @@
 6 默认情况下，如果两个变量或对象相等，即“变量1==变量2”，那么它们的哈希值也应该是相等的，这能防止字典的key发生不必要的混淆。这个规则对覆写提出了要求：
   如果覆写了某类的__eq__方法，那么最好也覆写它的__hash__方法，反之亦然，保证“变量1==变量2”和“变量1的哈希值等于变量2的哈希值”始终等价。
 7 str有个特殊的特性：s[n] == s[n:n+1]。绝大多数可切片的类都不会满足这个等式，包括list、bytearray等等。
+8 python3中函数的参数可以分为positional参数和keyword-only参数。后者在使用时，必须用“key=value”的方式传入函数。而且，无论是定义时还是使用时，
+  keyword-only参数都必须跟在positional参数之后。如果定义函数时，需要传入keyword-only参数，而且函数没有*args或**args这样的不定长参数，
+  那么使用如下格式分隔positional参数和keyword-only参数：def 函数名（positional参数，*，keyword-only参数）
