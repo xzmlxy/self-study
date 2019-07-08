@@ -13,5 +13,5 @@
   keyword-only参数都必须跟在positional参数之后。如果定义函数时，需要传入keyword-only参数，而且函数没有*args或**args这样的不定长参数，
   那么使用如下格式分隔positional参数和keyword-only参数：def 函数名（positional参数，*，keyword-only参数）
 9 有些代码会在引入（import）时就运行，比如注解中的代码。
-9 global声明使函数能使用全局变量，而nonlocal声明使嵌套在内部的函数能使用外部函数定义的局部变量。
+10 global声明使函数能使用全局变量，而nonlocal声明使嵌套在内部的函数能使用外部函数定义的局部变量。
 
