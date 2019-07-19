@@ -1,0 +1,3 @@
+为了防止同时执行的协程数过多（如不要过于频繁的调用网络接口），可以使用asyncio的Semaphore来做限制。在这个对象生成时,指定最多可同时执行的协程数，然后在协程的内部使用async with语句将Semaphore对象作为上下文即可。
+raise A from B,意味着A异常是由于B异常造成的，这在打印抛出的异常时可见。
+asyncio的loop还有run_in_executor方法，用来将某些会阻塞线程的操作，放到线程池中去执行。
