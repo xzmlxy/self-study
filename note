@@ -1,7 +1,0 @@
-为了防止同时执行的协程数过多（如不要过于频繁的调用网络接口），可以使用asyncio的Semaphore来做限制。在这个对象生成时,指定最多可同时执行的协程数，然后在协程的内部使用async with语句将Semaphore对象作为上下文即可。
-raise A from B,意味着A异常是由于B异常造成的，这在打印抛出的异常时可见。
-asyncio的loop还有run_in_executor方法，用来将某些会阻塞线程的操作，放到线程池中去执行。
-Future代表了某个未完成活动的将来完成后状态，它定义了和Loop相关的操作，可以包含多个子Task或Future，是Task的父类。
-而Task除了是Future的子类，还是对协程的包装，让协程可以被loop执行，一个协程对应于一个Task。
-使用asyncio.ensure_future(或create_task)可以将协程包装成task，包装成task的好处是可以调用task.result（）获取返回值。
-另外，await后面也可以是task或者future对象。
