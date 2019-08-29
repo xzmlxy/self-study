@@ -8,7 +8,7 @@ pandas中transform、apply和agg方法，有时可以替换使用，有时却又
 (1)transform虽然无法对Dataframe做聚类操作，但却可以对DataFrameGroupBy对象做聚类操作！在对DataFrameGroupBy执行聚类操作后，为
 
 了保持行数和原Dataframe相同，transform会对结果进行类似于广播的操作。独有特点：行数始终不变。
-(2)apply操作的对象是子片段，对于DataFrameGroupBy来说就是子group。因此当使用DataFrameGroupBy的apply时，便通过自定义函数对子
+(2)apply操作的对象是子片段，对于DataFrameGroupBy来说就是子group。因此当使用DataFrameGroupBy的apply时，便可通过自定义函数对子
 
 group进行任何操作，比如子group内列与列之间的操作——这是其他两者无法做到的。独有特点：操作的不是列，而是子片段。
 (3)agg方法只能接受聚类函数作为参数，但是它能像处理Dataframe一样，使用列表参数，从而产生多个结果列，DataFrameGroupBy的其他两
