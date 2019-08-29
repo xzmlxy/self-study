@@ -3,11 +3,7 @@ pandas中transform、apply和agg方法，有时可以替换使用，有时却又
 乎相同，transform和它们的差别也仅仅在于是否可执行聚类操作。但在处理DataFrameGroupBy和SeriesGroupBy对象时，它们各有不同的应用
 
 场景。
-当执行Dataframe的这三个方法时，它们的相同点如下：可执行自定义函数；函数类型不限定；参数可以是多个函数名组成的列表（注意：当
-
-参数为多个函数时，这些函数必须是类型一致的，比如同为聚类或同为迭代）。不同点是：transform不允许改变Dataframe的行数，因此不能
-
-执行聚类操作，apply和agg则不存在这样的限制。
+当执行Dataframe的这三个方法时，它们的相同点如下：可执行自定义函数；参数可以是多个函数名组成的列表（注意：当参数为多个函数时，这些函数必须是类型一致的，比如同为聚类或同为迭代）。不同点是：transform不允许改变Dataframe的行数，因此不能执行聚类操作，apply和agg则不存在这样的限制，聚类或非聚类都可执行。
 当DataFrameGroupBy（或SeriesGroupBy）执行这三个方法时，他们的区别如下：
 (1)transform虽然无法对Dataframe做聚类操作，但却可以对DataFrameGroupBy对象做聚类操作！在对DataFrameGroupBy执行聚类操作后，为
 
