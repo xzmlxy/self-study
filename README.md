@@ -1,4 +1,2 @@
 
-http://www.weiqi.net/index.php?m=home&c=index&a=win
-
-https://blog.csdn.net/weixin_40510799/article/details/90316856
+https://blog.csdn.net/enjoy_pascal/article/details/81478582
