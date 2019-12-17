@@ -27,3 +27,41 @@ vim 文件名（进入vim打开文件）
 另外一种是arg，类似位置参数，它在sh内部未被申明，传参时直接传入即可，通过“$”使用。
 
 
+import pandas as pd
+import json
+
+
+def transfer_info(info):
+    char_set = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    i = 0
+    while i < len(info):
+        if info[i] not in char_set:
+            info = info[:i] + info[i + 1:]
+        else:
+            i += 1
+    return info
+
+
+event_code_dic = {}
+same_codes_dic = {}
+event_code_df = pd.read_csv('D:\学习资料\specs.csv')
+print(len(event_code_df))
+for i, row in event_code_df.iterrows():
+    arg = json.loads(row['args'])
+    info = transfer_info(row['info'].upper())
+    if info not in event_code_dic:
+        event_code_dic[info] = []
+        same_codes_dic[row['event_id']] = [row['event_id']]
+    else:
+        find_same = False
+        for content in event_code_dic[info]:
+            if arg == content[1]:
+                same_codes_dic[content[0]].append(row['event_id'])
+                find_same = True
+                break
+        if not find_same:
+            same_codes_dic[row['event_id']] = [row['event_id']]
+    event_code_dic[info].append([row['event_id'], arg])
+print(len(event_code_dic))
+print(len(same_codes_dic))
+print(same_codes_dic)
