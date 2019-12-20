@@ -26,21 +26,25 @@ vim 文件名（进入vim打开文件）
 一种是option，类似关键字参数，它是已在sh内部声明的全局变量，在传参时需要指定参数名(“--参数名 参数值”)；
 另外一种是arg，类似位置参数，它在sh内部未被申明，传参时直接传入即可，通过“$”使用。
 
-label_df = pd.read_csv('D:\\学习资料\\train_labels.csv')
-label_df['all_attempt_times'] = label_df['num_correct'] + label_df['num_incorrect']
-group_data = label_df.groupby(['title'], as_index=False)
-a = group_data['accuracy', 'accuracy_group'].agg(np.mean)
-b = group_data['num_correct', 'all_attempt_times'].agg(np.sum)
-result = pd.merge(a, b)
-result['attempt_accuracy'] = result['num_correct'] / result['all_attempt_times'] * 100
-group_dic = {'title': [], 0: [], 1: [], 2: [], 3: []}
-for group_name, group in group_data:
-    temp_dic = group['accuracy_group'].value_counts().to_dict()
-    for key, value in temp_dic.items():
-        group_dic[key].append(value)
-    group_dic['title'].append(group_name)
-result = pd.merge(result, pd.DataFrame(group_dic))
-temp = label_df['title'].value_counts()
-m_dict = {'title': temp.index, 'session_times': temp.values}
-result = pd.merge(result, pd.DataFrame(m_dict))
-result.drop(['accuracy_group', 'all_attempt_times'], axis=1).to_csv('D:\\学习资料\\sta_labels.csv')
+    @staticmethod
+    def find_relationship_id_and_code():
+        data = DataUtil.get_data_from_file(DataUtil.test_data)
+        code_map = {}
+        for index, row in data.iterrows():
+            event_code = row["event_code"]
+            if event_code not in code_map:
+                code_map[event_code] = {}
+            event_id = row["event_id"]
+            if event_id not in code_map[event_code]:
+                code_map[event_code][event_id] = 0
+            code_map[event_code][event_id] += 1
+        result_set = set()
+        for key, value in code_map.items():
+            for event_id in value:
+                if event_id not in result_set:
+                    result_set.add(key)
+                else:
+                    print("duplicate id:", event_id, "have two code")
+        print(code_map)
+        # print(code_map['4110'])
+        return code_map
