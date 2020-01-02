@@ -1,0 +1,56 @@
+    @staticmethod
+    def create_baseline_mode_data():
+        label_data = DataUtil.get_data_from_raw_file(DataUtil.label_train_data)
+        game_sessions = label_data['game_session']
+        baseline_mode_data_dic = {}
+        session_df = DataUtil.__create_session_features(DataUtil.train_data)
+        groups = session_df.groupby(['installation_id'])
+        for installation_id, data in groups:
+            statistics_dic = {}
+            for i, row in data.iterrows():
+                if row['game_session'] in game_sessions:
+                    DataUtil.__create_data(statistics_dic, baseline_mode_data_dic)
+                DataUtil.__update_statistics_dic(row, statistics_dic)
+        return pd.DataFrame(baseline_mode_data_dic)
+
+    @staticmethod
+    def __create_data(s_dic, data_dic):
+        return None
+
+    @staticmethod
+    def __update_statistics_dic(data, s_dic):
+        return None
+
+    @staticmethod
+    def __create_session_features(data_file):
+        session_features_dic = {'game_session': [], 'title': [], 'type': [], 'world': [], 'month': [], 'weekday': [],
+                                'hour': []}
+        session_features_dic.update(DataUtil.__get_event_code_dic())
+        data = DataUtil.get_data_from_file(data_file)
+        groups_data = data.groupby(['game_session'], as_index=False)
+        for _, session_data in groups_data:
+            session_features_dic['game_session'].append(groups_data[0]['game_session'])
+            session_features_dic['title'].append(groups_data[0]['title'])
+            session_features_dic['type'].append(groups_data[0]['type'])
+            session_features_dic['world'].append(groups_data[0]['world'])
+            DataUtil.__get_time_data(session_data[0]['time'], session_features_dic)
+            DataUtil.__get_code_data(session_data, session_features_dic)
+        df = pd.DataFrame(session_features_dic)
+        return df
+
+    @staticmethod
+    def __get_event_code_dic():
+        result = {}
+        data = DataUtil.get_data_from_raw_file(DataUtil.test_data)
+        code_list = data['event_code'].unique().to_list()
+        for code in code_list:
+            result[code + '_count'] = []
+        return result
+
+    @staticmethod
+    def __get_time_data(time_str, session_dic):
+        return None
+
+    @staticmethod
+    def __get_code_data(df_data, session_dic):
+        return None
