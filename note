@@ -1,56 +1,57 @@
-    @staticmethod
-    def create_baseline_mode_data():
-        label_data = DataUtil.get_data_from_raw_file(DataUtil.label_train_data)
-        game_sessions = label_data['game_session']
-        baseline_mode_data_dic = {}
-        session_df = DataUtil.__create_session_features(DataUtil.train_data)
-        groups = session_df.groupby(['installation_id'])
-        for installation_id, data in groups:
-            statistics_dic = {}
-            for i, row in data.iterrows():
-                if row['game_session'] in game_sessions:
-                    DataUtil.__create_data(statistics_dic, baseline_mode_data_dic)
-                DataUtil.__update_statistics_dic(row, statistics_dic)
-        return pd.DataFrame(baseline_mode_data_dic)
+def get_time_data(times, session_dic):
+    date = datetime.datetime.strptime(times.iloc[0], "%Y-%m-%d %H:%M:%S")
+    session_dic['month'].append(date.month)
+    session_dic['day'].append(date.day)
+    session_dic['hour'].append(date.hour)
+    session_dic['weekday'].append(date.weekday())
+    session_dic['isWeekend'].append(date.weekday() > 4)
+    end_date = datetime.datetime.strptime(times.iloc[-1], "%Y-%m-%d %H:%M:%S")
+    session_dic['total_duration'].append((end_date - date).total_seconds())
 
-    @staticmethod
-    def __create_data(s_dic, data_dic):
-        return None
 
-    @staticmethod
-    def __update_statistics_dic(data, s_dic):
-        return None
+def get_code_data(df_data, session_dic):
+    code_series = df_data['event_code'].value_counts()
+    for code in code_dic:
+        if code in code_series:
+            session_dic[code].append(code_series[code])
+        else:
+            session_dic[code].append(0)
 
-    @staticmethod
-    def __create_session_features(data_file):
-        session_features_dic = {'game_session': [], 'title': [], 'type': [], 'world': [], 'month': [], 'weekday': [],
-                                'hour': []}
-        session_features_dic.update(DataUtil.__get_event_code_dic())
-        data = DataUtil.get_data_from_file(data_file)
-        groups_data = data.groupby(['game_session'], as_index=False)
-        for _, session_data in groups_data:
-            session_features_dic['game_session'].append(groups_data[0]['game_session'])
-            session_features_dic['title'].append(groups_data[0]['title'])
-            session_features_dic['type'].append(groups_data[0]['type'])
-            session_features_dic['world'].append(groups_data[0]['world'])
-            DataUtil.__get_time_data(session_data[0]['time'], session_features_dic)
-            DataUtil.__get_code_data(session_data, session_features_dic)
-        df = pd.DataFrame(session_features_dic)
-        return df
 
-    @staticmethod
-    def __get_event_code_dic():
-        result = {}
-        data = DataUtil.get_data_from_raw_file(DataUtil.test_data)
-        code_list = data['event_code'].unique().to_list()
-        for code in code_list:
-            result[code + '_count'] = []
-        return result
+def get_feature_one_session(session_data, session_features_dic):
+    session_features_dic['installation_id'].append(session_data['installation_id'].iloc[0])
+    session_features_dic['game_session'].append(session_data['game_session'].iloc[0])
+    session_features_dic['title'].append(session_data['title'].iloc[0])
+    session_features_dic['type'].append(session_data['type'].iloc[0])
+    session_features_dic['world'].append(session_data['world'].iloc[0])
+    session_features_dic['event_count'].append(len(session_data))
+    get_time_data(session_data['time'], session_features_dic)
+    get_code_data(session_data, session_features_dic)
 
-    @staticmethod
-    def __get_time_data(time_str, session_dic):
-        return None
 
-    @staticmethod
-    def __get_code_data(df_data, session_dic):
-        return None
+def create_session_features(data_file):
+    session_features_dic = {'installation_id': [], 'game_session': [], 'title': [], 'type': [], 'world': [],
+                            'month': [], 'day': [], 'weekday': [], 'isWeekend': [], 'hour': [], 'event_count': [],
+                            'total_duration': []}
+    session_features_dic.update(code_dic)
+    data = pd.read_csv(data_file)
+    id_groups_data = data.groupby(['installation_id'], as_index=False)
+    for _, id_data in id_groups_data:
+        game_session = None
+        start_row = -1
+        id_data = id_data.reset_index(drop=True)
+        for i, row in id_data.iterrows():
+            if row['game_session'] != game_session:
+                if game_session is not None:
+                    get_feature_one_session(id_data[start_row:i], session_features_dic)
+                else:
+                    print(i)
+                game_session = row['game_session']
+                start_row = i
+        get_feature_one_session(id_data[start_row:], session_features_dic)
+    df = pd.DataFrame(session_features_dic)
+    df.to_csv('D:\\学习资料\\session_statistics_data.csv', index=False)
+    return df
+
+
+create_session_features('D:\\学习资料\\transfer_test.csv')
