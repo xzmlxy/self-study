@@ -1,1 +1,2 @@
-
+session_length = df.groupby(['installation_id'])['game_session'].unique().map(lambda x: len(x))
+print(session_length.idxmin())
