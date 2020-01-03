@@ -1,2 +1,119 @@
 session_length = df.groupby(['installation_id'])['game_session'].unique().map(lambda x: len(x))
 print(session_length.idxmin())
+
+
+import pandas as pd
+import datetime
+import time
+import matplotlib.pyplot as plt
+
+m_df = pd.read_csv('D:\\学习资料\\transfer_test.csv')
+codes = m_df['event_code'].unique()
+types = m_df['type'].unique()
+titles = m_df['title'].unique()
+worlds = m_df['world'].unique()
+worlds_type = []
+for world in worlds:
+    worlds_type.append('world_' + world)
+
+
+def prepare_for_merge(df):
+    return df
+
+
+def create_assessment_data(row, statistics_dic, data_dic):
+    for column_name in 'month,day,weekday,isWeekend,hour,'.split(','):
+        data_dic[column_name].append(row[column_name])
+    return None
+
+
+def update_statistics_dic(s_dic):
+    return None
+
+
+def create_data_for_model():
+    train_data = {}
+    test_data = {}
+    label_data = pd.read_csv('D:\\学习资料\\train_labels.csv')
+    all_assessment = label_data['game_session'].unique()
+    label_data = prepare_for_merge(label_data)
+    df = pd.read_csv('D:\\学习资料\\session_statistics_data1.csv')
+    # TODO:merge the two dataframes
+    groups = df.groupby(['installation_id'])
+    for installation_id, data in groups:
+        statistics_dic = {}
+        for i, row in data.iterrows():
+            if row['type'] == 'Assessment':
+                if row['game_session'] in all_assessment:
+                    create_assessment_data(row, statistics_dic, train_data)
+                else:
+                    create_assessment_data(row, statistics_dic, test_data)
+                    break
+            update_statistics_dic(statistics_dic)
+
+
+def get_time_data(times, session_dic, count):
+    date = datetime.datetime.strptime(times.iloc[0], "%Y-%m-%d %H:%M:%S")
+    session_dic['month'][count] = date.month
+    session_dic['day'][count] = date.day
+    session_dic['hour'][count] = date.hour
+    session_dic['weekday'][count] = date.weekday()
+    if date.weekday() > 4:
+        session_dic['isWeekend'][count] = 1
+    else:
+        session_dic['isWeekend'][count] = 0
+    end_date = datetime.datetime.strptime(times.iloc[-1], "%Y-%m-%d %H:%M:%S")
+    session_dic['total_duration'][count] = (end_date - date).total_seconds()
+
+
+def get_code_data(df_data, session_dic, count):
+    code_series = df_data['event_code'].value_counts()
+    for code in codes:
+        if code in code_series:
+            session_dic[code][count] = code_series[code]
+
+
+def get_feature_one_session(session_data, session_features_dic, count):
+    session_features_dic['installation_id'][count] = session_data['installation_id'].iloc[0]
+    session_features_dic['game_session'][count] = session_data['game_session'].iloc[0]
+    session_features_dic[session_data['title'].iloc[0]][count] = 1
+    session_features_dic[session_data['type'].iloc[0]][count] = 1
+    session_features_dic['world_' + session_data['world'].iloc[0]][count] = 1
+    session_features_dic['event_count'][count] = len(session_data)
+    get_time_data(session_data['time'], session_features_dic, count)
+    get_code_data(session_data, session_features_dic, count)
+
+
+def create_session_features(data_file):
+    data = pd.read_csv(data_file)
+    length = len(data['game_session'].unique())
+    columns = ['installation_id', 'game_session', 'month', 'day', 'hour', 'weekday', 'isWeekend', 'event_count',
+               'total_duration']
+    session_features_dic = {}
+    for column in columns:
+        session_features_dic[column] = [0] * length
+    for code in codes:
+        session_features_dic[code] = [0] * length
+    for title in titles:
+        session_features_dic[title] = [0] * length
+    for type in types:
+        session_features_dic[type] = [0] * length
+    for world in worlds_type:
+        session_features_dic[world] = [0] * length
+    id_groups_data = data.groupby(['installation_id'], as_index=False)
+    session_count = -1
+    for _, id_data in id_groups_data:
+        game_session = None
+        start_row = -1
+        id_data = id_data.reset_index(drop=True)
+        for i, row in id_data.iterrows():
+            if row['game_session'] != game_session:
+                session_count += 1
+                if game_session is not None:
+                    get_feature_one_session(id_data[start_row:i], session_features_dic, session_count)
+                game_session = row['game_session']
+                start_row = i
+        get_feature_one_session(id_data[start_row:], session_features_dic, session_count)
+    df = pd.DataFrame(session_features_dic)
+    df.to_csv('D:\\学习资料\\session_statistics_data.csv', index=False)
+    return df
