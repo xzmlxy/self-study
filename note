@@ -1,1 +1,48 @@
-
+    @staticmethod
+    def create_data_for_model():
+        all_predict_assessment, label_data = DataUtil.__pre_process_train_label_data()
+        all_train_assessment = label_data['game_session'].unique()
+        train_data = []
+        test_data = []
+        for file_path in [DataUtil.session_train_data, DataUtil.session_test_data]:
+            all_path = os.path.join(DataUtil.create_path, file_path)
+            if os.path.exists(all_path):
+                df = DataUtil.get_data_from_file(all_path)
+            else:
+                df = DataUtil.create_session_features(all_path)
+            groups = df.groupby(['installation_id'])
+            for installation_id, data in groups:
+                accumulate_dic = {}
+                for code in DataUtil.event_code_list:
+                    accumulate_dic[code] = 0
+                accumulate_start_line = 0
+                last_assessment_session = None
+                for i, row in data.iterrows():
+                    if row['type'] == 'Assessment':
+                        if row['game_session'] in all_train_assessment or row['game_session'] in all_predict_assessment:
+                            accumulate_data = data[accumulate_start_line: i + 1]
+                            if last_assessment_session is None:
+                                label = label_data.keys()
+                            else:
+                                label = label_data[label_data['game_session'] == last_assessment_session]
+                            if row['game_session'] in all_train_assessment:
+                                DataUtil.__create_assessment_data(accumulate_data, label, last_assessment_session,
+                                                                  train_data)
+                            else:
+                                DataUtil.__create_assessment_data(accumulate_data, label, last_assessment_session,
+                                                                  test_data)
+                            accumulate_start_line = i
+                            last_assessment_session = row['game_session']
+        return pd.DataFrame(train_data), pd.DataFrame(test_data)
+        
+            @staticmethod
+    def __create_assessment_data(accumulate_data, label, last_assessment_session, data):
+        new_data = accumulate_data.iloc[[-1]][DataUtil.columns_list]
+        accumulate_data.drop(columns=DataUtil.columns_list)
+        accumulate = accumulate_data[:-1][DataUtil.event_code_list].sum()
+        accumulate.append(label.drop('game_session'))
+        if last_assessment_session is not None:
+            for name in accumulate.index:
+                accumulate[name] += data[-1][name]
+        new_data.append(accumulate)
+        data.append(new_data)
