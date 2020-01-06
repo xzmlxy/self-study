@@ -46,3 +46,52 @@
                 accumulate[name] += data[-1][name]
         new_data.append(accumulate)
         data.append(new_data)
+        
+        
+        
+            @staticmethod
+    def create_session_features(data_file):
+        if 'train' in data_file:
+            data = DataUtil.get_data_from_raw_file(DataUtil.train_data)
+        else:
+            data = DataUtil.get_data_from_raw_file(DataUtil.test_data)
+        length = len(data['game_session'].unique())
+        print(length)
+        all_a = 0
+        last_id = None
+        last_session = None
+        for i, row in data.iterrows():
+            if row['installation_id'] != last_id or row['game_session'] != last_session:
+                all_a += 1
+            if all_a % 1000 == 0:
+                print(all_a)
+        print(all)
+        session_features_dic = {}
+        for column in DataUtil.columns_list:
+            session_features_dic[column] = [0] * length
+        for code in DataUtil.event_code_list:
+            session_features_dic[code] = [0] * length
+        for title in DataUtil.session_title_list:
+            session_features_dic[title] = [0] * length
+        for s_type in DataUtil.session_type_list:
+            session_features_dic[s_type] = [0] * length
+        for world in DataUtil.session_world_list:
+            session_features_dic[world] = [0] * length
+        id_groups_data = data.groupby(['installation_id'], as_index=False)
+        session_count = -1
+        for _, id_data in id_groups_data:
+            game_session = None
+            start_row = -1
+            id_data = id_data.reset_index(drop=True)
+            for i, row in id_data.iterrows():
+                if row['game_session'] != game_session:
+                    if game_session is not None:
+                        session_count += 1
+                        DataUtil.__get_feature_one_session(id_data[start_row:i], session_features_dic, session_count)
+                    game_session = row['game_session']
+                    start_row = i
+            session_count += 1
+            DataUtil.__get_feature_one_session(id_data[start_row:], session_features_dic, session_count)
+        df = pd.DataFrame(session_features_dic)
+        df.to_csv(os.path.join(DataUtil.create_path, 'session_' + data_file), index=False)
+        return df
