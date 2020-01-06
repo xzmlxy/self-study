@@ -1,5 +1,7 @@
-
-   if row['Assessment'] == 1:   
+ data = data.reset_index(drop=True)
+  
+  
+  if row['Assessment'] == 1:   
    
    
    
@@ -10,6 +12,18 @@
                     else:
                         label_index = label_data[label_data['game_session'] == last_assessment_session].index[0]
                         label = label_data.iloc[label_index]
+                        
+  def __create_assessment_data(accumulate_data, label, last_assessment_session, data):
+    print(accumulate_data.shape)
+    new_data = accumulate_data.iloc[-1][columns_list]
+    accumulate_data = accumulate_data.drop(columns=columns_list)
+    accumulate = accumulate_data[:-1].sum()
+    accumulate = accumulate.append(label, ignore_index=False)
+    accumulate = accumulate.drop(labels=['index','game_session','Unnamed: 0'])
+    if last_assessment_session is not None:
+        for name in accumulate.index:
+            accumulate[name] += data[-1][name]
+    data.append(new_data.append(accumulate, ignore_index=False))
         
         
     for i, row in data.iterrows():
@@ -22,14 +36,4 @@
     print(all_a)
     
    
-   def __create_assessment_data(accumulate_data, label, last_assessment_session, data):
-    print(accumulate_data.shape)
-    new_data = accumulate_data.iloc[-1][columns_list]
-    accumulate_data = accumulate_data.drop(columns=columns_list)
-    accumulate = accumulate_data[:-1].sum()
-    accumulate = accumulate.append(label, ignore_index=False)
-    accumulate = accumulate.drop(labels=['index','game_session','Unnamed: 0'])
-    if last_assessment_session is not None:
-        for name in accumulate.index:
-            accumulate[name] += data[-1][name]
-    data.append(new_data.append(accumulate, ignore_index=False))
+
