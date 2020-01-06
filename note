@@ -1,5 +1,15 @@
 
    if row['Assessment'] == 1:   
+   
+   
+   
+                       if last_assessment_session is None:
+                        label_key = label_data.keys()
+                        value = [0] * len(label_key)
+                        label = pd.Series(dict(zip(label_key, value)))
+                    else:
+                        label_index = label_data[label_data['game_session'] == last_assessment_session].index[0]
+                        label = label_data.iloc[label_index]
         
         
     for i, row in data.iterrows():
@@ -10,3 +20,16 @@
             if all_a % 1000 == 0:
                 print(all_a)
     print(all_a)
+    
+   
+   def __create_assessment_data(accumulate_data, label, last_assessment_session, data):
+    print(accumulate_data.shape)
+    new_data = accumulate_data.iloc[-1][columns_list]
+    accumulate_data = accumulate_data.drop(columns=columns_list)
+    accumulate = accumulate_data[:-1].sum()
+    accumulate = accumulate.append(label, ignore_index=False)
+    accumulate = accumulate.drop(labels=['index','game_session','Unnamed: 0'])
+    if last_assessment_session is not None:
+        for name in accumulate.index:
+            accumulate[name] += data[-1][name]
+    data.append(new_data.append(accumulate, ignore_index=False))
