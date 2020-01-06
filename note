@@ -1,5 +1,5 @@
 
-        
+   if row['Assessment'] == 1:   
         
         
     for i, row in data.iterrows():
