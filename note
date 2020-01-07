@@ -1,4 +1,4 @@
-删去3ab98c1bb7065fb4
+
    
    不同world、不同type、不同title的总占用时长，总点击数；以及同一world的Assessment的正确/错误次数、不同得分次数
    
@@ -10,9 +10,6 @@ arg:misses
 {'4a4c3d21', '74e5f8a7', 'e7561dd2', '91561152', '8fee50e2', '4ef8cdd3', '30614231', '25fa8af4', '14de4c5d', '0db6d71d', '2dc29e21', '5c3d2b2f', '86c924c4', 'd122731b', '28f975ea', '262136f4', 'c0415e5c', '804ee27f', '3bb91dda', '17113b36', '070a5291', 'a5e9da97', '93b353f2', '8af75982', '392e14df', '5f0eb72c'}
 arg:correct
 
-tutorial:
-2070(finish) arg:duration
-2075(skip) arg:duration
    
    
   
