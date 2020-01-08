@@ -11,6 +11,14 @@ arg:misses
 arg:correct
 
    
-   
+   import time
+
+
+def annotation_time(fn):
+    def cal_time(*args):
+        t = time.time()
+        fn(*args)
+        print(time.time() - t)
+    return cal_time
   
 
