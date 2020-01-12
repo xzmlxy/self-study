@@ -1,6 +1,21 @@
+    def split_data_by_assessment_name():
+        all_train_x = DataUtil.get_data_from_file(DataUtil.train_data_for_model)
+        if all_train_x is not None:
+            all_train_y = DataUtil.get_data_from_file(DataUtil.label_data_for_model)
+            all_test_x = DataUtil.get_data_from_file(DataUtil.test_data_for_model)
+        else:
+            all_train_x, all_train_y, all_test_x = DataUtil.create_data_for_model()
+            all_train_x.to_csv(os.path.join(DataUtil.create_path, DataUtil.train_data_for_model), index=False)
+            all_test_x.to_csv(os.path.join(DataUtil.create_path, DataUtil.test_data_for_model), index=False)
+            all_train_y.to_csv(os.path.join(DataUtil.create_path, DataUtil.label_data_for_model), index=False)
+        all_data = {}
 
-   （1）准确率的统计
-   （2）和Assessment同一world的统计数据
+        for assessment in DataUtil.assessment_list:
+            train_x = all_train_x[all_train_x['title'] == assessment]
+            test_x = all_test_x[all_test_x['title'] == assessment]
+            train_y = all_train_y[all_train_y['game_session'].isin(train_x['game_session'])]
+            all_data[assessment] = (train_x, train_y, test_x)
+        return all_data
    
 
    
