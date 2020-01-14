@@ -1,24 +1,92 @@
-    def split_data_by_assessment_name():
-        all_train_x = DataUtil.get_data_from_file(DataUtil.train_data_for_model)
-        if all_train_x is not None:
-            all_train_y = DataUtil.get_data_from_file(DataUtil.label_data_for_model)
-            all_test_x = DataUtil.get_data_from_file(DataUtil.test_data_for_model)
-        else:
-            all_train_x, all_train_y, all_test_x = DataUtil.create_data_for_model()
-            all_train_x.to_csv(os.path.join(DataUtil.create_path, DataUtil.train_data_for_model), index=False)
-            all_test_x.to_csv(os.path.join(DataUtil.create_path, DataUtil.test_data_for_model), index=False)
-            all_train_y.to_csv(os.path.join(DataUtil.create_path, DataUtil.label_data_for_model), index=False)
-        all_data = {}
-
-        for assessment in DataUtil.assessment_list:
-            train_x = all_train_x[all_train_x['title'] == assessment]
-            test_x = all_test_x[all_test_x['title'] == assessment]
-            train_y = all_train_y[all_train_y['game_session'].isin(train_x['game_session'])]
-            all_data[assessment] = (train_x, train_y, test_x)
-        return all_data
-   
+为什么混入了index 和 accuracy_group?
 
    
+import xgboost
+import sklearn
+import numpy
+import pandas as pd
+from sklearn.feature_selection import SelectFromModel
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import cohen_kappa_score
+from sklearn.model_selection import GridSearchCV
+
+
+class ModelForAll:
+    def __init__(self, data_x, data_y):
+        self.model_dic = {}
+        assessments = data_x['title'].unique()
+        for assessment in assessments:
+            train_x = data_x[data_x['title'] == assessment]
+            train_y = data_y[data_y['game_session'].isin(train_x['game_session'])]
+            combine_x_y = pd.merge(train_x, train_y, on='game_session')
+            self.model_dic[assessment] = self.Model(
+                combine_x_y.drop(columns=['installation_id', 'title', 'game_session']))
+
+    def train(self):
+        for _, model in self.model_dic.items():
+            if model is not None:
+                model.train()
+
+    def predict(self, test_data):
+        all_results = []
+        for assessment in self.model_dic:
+            part_test_data = test_data[test_data['title'] == assessment]
+            predict_result = self.model_dic[assessment].predict(
+                part_test_data.drop(columns=['installation_id', 'title', 'game_session']))
+            if predict_result is not None:
+                result = pd.DataFrame({'accuracy_group': predict_result})
+                result.insert(loc=0, column='installation_id', value=part_test_data['installation_id'])
+                all_results.append(result)
+        return pd.concat(all_results)
+
+    class Model:
+        def __init__(self, data):
+            self.threshold = 100
+            self.selection = None
+            self.model = None
+            self.data = data
+
+        def train(self):
+            y = self.data.pop('accuracy_group')
+            x = self.data
+            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1)
+            # x_train = x
+            # y_train = y
+            params = {'learning_rate': 0.1, 'n_estimators': 200, 'gamma': 0.05, 'max_depth': 7, 'min_child_weight': 1,
+                      'objective': 'multi:softmax', 'num_class': 4}
+            model = xgboost.XGBRFClassifier(**params)
+            model.fit(x_train, y_train)
+            # plot_importance(model)
+            # pyplot.show()
+            thresholds = numpy.sort(model.feature_importances_)
+            self.selection = SelectFromModel(model, threshold=thresholds[-self.threshold], prefit=True)
+            select_x_train = self.selection.transform(x_train)
+            self.model = xgboost.XGBRFClassifier(**params)
+            # self.__adjust(select_x_train, y_train)
+            self.model.fit(select_x_train, y_train)
+            predict_y = self.predict(x_test)
+            temp = y.value_counts().idxmax()
+            print('众数是：' + str(temp))
+            mock_predict_y = [temp] * len(predict_y)
+            print('if set average value,the kappa is:')
+            print(cohen_kappa_score(mock_predict_y, y_test))
+            print("the model kappa is:")
+            print(cohen_kappa_score(predict_y, y_test))
+            print("train model finished!")
+
+        def __adjust(self, x, y):
+            cv_params = {'gamma': numpy.linspace(0, 1, 20)}
+            gs = GridSearchCV(self.model, cv_params, cv=5)
+            gs.fit(x, y)
+            print("参数的最佳取值：:", gs.best_params_)
+
+        def predict(self, data):
+            if self.model is not None and self.selection is not None:
+                select_x_train = self.selection.transform(data)
+                return self.model.predict(select_x_train)
+            else:
+                print("cannot predict!")
+                return None
 
 
    
