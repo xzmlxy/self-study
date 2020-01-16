@@ -1,0 +1,6 @@
+1.混淆数据
+df_1 = shuffle(df).reset_index(drop=True)
+2.使用StratifiedKFold（训练和参数search）
+skf = StratifiedKFold(n_splits=3)
+grid = GridSearchCV(regressor, parameters, scoring_fnc, cv=skf)
+3.尝试RandomizedSearchCV
