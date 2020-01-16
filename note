@@ -131,10 +131,12 @@ class ModelAgent:
                 model.train()
 
     def get_current_model_cv_cohen_kappa_score(self, cv):
+        score_dict = {}
         for name, model in self.model_dic.items():
             if model is not None:
                 value = model.get_cv_score(cv, cohen_kappa_score)
-                print(name, value)
+                score_dict[name] = value
+        return score_dict
 
     def predict(self, test_data):
         all_results = []
