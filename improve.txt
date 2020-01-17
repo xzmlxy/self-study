@@ -1,9 +1,3 @@
-1. early_stopping_rounds的添加
-2. 参考一下别人的特征
-3. 应用pipline有好处吗？
-
-
-
 # encode title
 list_of_user_activities = list(set(train['title'].value_counts().index).union(set(test['title'].value_counts().index)))
 activities_map = dict(zip(list_of_user_activities, np.arange(len(list_of_user_activities))))
