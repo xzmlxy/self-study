@@ -1,1 +1,64 @@
+import pandas as pd
+from code.XGBModel import XGBModel
+from sklearn.metrics import cohen_kappa_score
 
+
+class ModelAgent:
+    def __init__(self, data_x, data_y, one_model=False):
+        self.model_dic = {}
+        self.one_model = one_model
+        if not one_model:
+            assessments = data_x['title'].unique()
+            for assessment in assessments:
+                train_x = data_x[data_x['title'] == assessment]
+                train_y = data_y[data_y['game_session'].isin(train_x['game_session'])]
+                combine_x_y = pd.merge(train_x, train_y, on='game_session')
+                self.model_dic[assessment] = ModelAgent.create_xgbmodel(combine_x_y)
+        else:
+            data_x['title_name'] = data_x['title']
+            data_x = pd.get_dummies(data_x, columns=['title_name'])
+            combine_x_y = pd.merge(data_x, data_y, on='game_session')
+            self.model_dic['all'] = ModelAgent.create_xgbmodel(combine_x_y)
+
+    @staticmethod
+    def create_xgbmodel(data):
+        return XGBModel(data.drop(columns=['installation_id', 'title', 'game_session']), y_name='accuracy_group')
+
+    def train(self):
+        for _, model in self.model_dic.items():
+            if model is not None:
+                model.train()
+
+    def adjust_model_params(self):
+        for _, model in self.model_dic.items():
+            if model is not None:
+                model.adjust_params_one_by_one()
+
+    def get_current_model_cv_cohen_kappa_score(self, cv):
+        score_dict = {}
+        for name, model in self.model_dic.items():
+            if model is not None:
+                value = model.get_cv_score(cv, cohen_kappa_score)
+                score_dict[name] = value
+        return score_dict
+
+    def predict(self, test_data):
+        if not self.one_model:
+            all_results = []
+            for assessment in self.model_dic:
+                part_test_data = test_data[test_data['title'] == assessment]
+                part_test_data.reset_index(drop=True)
+                predict_result = self.model_dic[assessment].predict(
+                    part_test_data.drop(columns=['installation_id', 'title', 'game_session']))
+                if predict_result is not None:
+                    result = pd.DataFrame(
+                        {'installation_id': part_test_data['installation_id'].values, 'accuracy_group': predict_result})
+                    all_results.append(result)
+            return pd.concat(all_results)
+        else:
+            test_data['title_name'] = test_data['title']
+            test_data = pd.get_dummies(test_data, columns=['title_name'])
+            predict_result = self.model_dic['all'].predict(
+                test_data.drop(columns=['installation_id', 'title', 'game_session']))
+            return pd.DataFrame(
+                {'installation_id': test_data['installation_id'].values, 'accuracy_group': predict_result})
