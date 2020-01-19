@@ -1,64 +1,129 @@
-import pandas as pd
-from code.XGBModel import XGBModel
-from sklearn.metrics import cohen_kappa_score
+install catboost
+install lightgbm
+
+import numpy
+from sklearn.feature_selection import SelectFromModel
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import StratifiedKFold
+from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split
+from abc import ABCMeta, abstractmethod
 
 
-class ModelAgent:
-    def __init__(self, data_x, data_y, one_model=False):
-        self.model_dic = {}
-        self.one_model = one_model
-        if not one_model:
-            assessments = data_x['title'].unique()
-            for assessment in assessments:
-                train_x = data_x[data_x['title'] == assessment]
-                train_y = data_y[data_y['game_session'].isin(train_x['game_session'])]
-                combine_x_y = pd.merge(train_x, train_y, on='game_session')
-                self.model_dic[assessment] = ModelAgent.create_xgbmodel(combine_x_y)
-        else:
-            data_x['title_name'] = data_x['title']
-            data_x = pd.get_dummies(data_x, columns=['title_name'])
-            combine_x_y = pd.merge(data_x, data_y, on='game_session')
-            self.model_dic['all'] = ModelAgent.create_xgbmodel(combine_x_y)
+class BaseModel(metaclass=ABCMeta):
+    def __init__(self, data, y_name: str = None, params: dict = None):
+        self.data = shuffle(data).reset_index(drop=True)
+        self.params = params
+        self.threshold = 100
+        self.model = None
+        self.selection = None
+        self.y_name = y_name
+        if self.y_name is None:
+            raise Exception()
+        self.x_train, self.y_train = self.__split_x_y(self.data)
 
-    @staticmethod
-    def create_xgbmodel(data):
-        return XGBModel(data.drop(columns=['installation_id', 'title', 'game_session']), y_name='accuracy_group')
+    def __split_x_y(self, data):
+        x = data[[column_name for column_name in data.columns if column_name != self.y_name]]
+        y = data[self.y_name]
+        return x, y
+
+    def set_select_feature_threshold(self, threshold):
+        self.threshold = threshold
 
     def train(self):
-        for _, model in self.model_dic.items():
-            if model is not None:
-                model.train()
+        print('Training...')
+        x_train, x_test, y_train, y_test = train_test_split(self.x_train, self.y_train, test_size=0.1,
+                                                            random_state=7)
+        self.model, self.selection = self._internal_train(x_train, x_test, y_train, y_test)
+        print('Finish to train.')
 
-    def adjust_model_params(self):
-        for _, model in self.model_dic.items():
-            if model is not None:
-                model.adjust_params_one_by_one()
-
-    def get_current_model_cv_cohen_kappa_score(self, cv):
-        score_dict = {}
-        for name, model in self.model_dic.items():
-            if model is not None:
-                value = model.get_cv_score(cv, cohen_kappa_score)
-                score_dict[name] = value
-        return score_dict
-
-    def predict(self, test_data):
-        if not self.one_model:
-            all_results = []
-            for assessment in self.model_dic:
-                part_test_data = test_data[test_data['title'] == assessment]
-                part_test_data.reset_index(drop=True)
-                predict_result = self.model_dic[assessment].predict(
-                    part_test_data.drop(columns=['installation_id', 'title', 'game_session']))
-                if predict_result is not None:
-                    result = pd.DataFrame(
-                        {'installation_id': part_test_data['installation_id'].values, 'accuracy_group': predict_result})
-                    all_results.append(result)
-            return pd.concat(all_results)
+    def predict(self, data):
+        if self.model is not None and self.selection is not None:
+            select_x_train = self.selection.transform(data)
+            return self.model.predict(select_x_train)
         else:
-            test_data['title_name'] = test_data['title']
-            test_data = pd.get_dummies(test_data, columns=['title_name'])
-            predict_result = self.model_dic['all'].predict(
-                test_data.drop(columns=['installation_id', 'title', 'game_session']))
-            return pd.DataFrame(
-                {'installation_id': test_data['installation_id'].values, 'accuracy_group': predict_result})
+            print("No model to  predict!")
+            return None
+
+    def _internal_train(self, x_train, y_train, x_test, y_test):
+        model = self._get_model()
+        if x_test is not None:
+            model.fit(x_train, y_train, eval_metric='mlogloss', early_stopping_rounds=10, eval_set=[(x_test, y_test)])
+        else:
+            model.fit(x_train, y_train)
+        thresholds = numpy.sort(model.feature_importances_)
+        selection = SelectFromModel(model, threshold=thresholds[-self.threshold], prefit=True)
+        select_x_train = selection.transform(x_train)
+        select_x_test = selection.transform(x_test)
+        model = self._get_model()
+        if x_test is not None:
+            model.fit(select_x_train, y_train, eval_metric='mlogloss', early_stopping_rounds=10,
+                      eval_set=[(select_x_test, y_test)])
+        else:
+            model.fit(x_train, y_train)
+        return model, selection
+
+    @abstractmethod
+    def _get_model(self):
+        return None
+
+    def get_cv_score(self, cv, loss_fun):
+        result = numpy.ndarray(cv)
+        skf = StratifiedKFold(n_splits=cv)
+        i = 0
+        x, y = self.__split_x_y(self.data)
+        for train, test in skf.split(x, y):
+            x_train = x.iloc[train]
+            y_train = y.iloc[train]
+            x_test = x.iloc[test]
+            y_test = y.iloc[test]
+            model, selection = self._internal_train(x_train, y_train, x_test, y_test)
+            select_x_train = selection.transform(x_test)
+            predict_y = model.predict(select_x_train)
+            result[i] = loss_fun(predict_y, y_test)
+            print(result[i])
+            i += 1
+        return result.mean()
+
+    def train_with_adjust_params(self, params, one_by_one=True):
+        self.train()
+        if one_by_one:
+            self.adjust_params_one_by_one(params)
+        else:
+            self.adjust_param(params)
+        self.train()
+
+    def adjust_params_one_by_one(self, params):
+        for key, value_range in params:
+            self.adjust_param({key: value_range})
+
+    def adjust_param(self, adjust_param):
+        if self.model is None:
+            print("No model to adjust!")
+        else:
+            # adjust_param = {'gamma': numpy.linspace(0, 1, 20)}
+            my_cv = StratifiedKFold(n_splits=5)
+            print('Adjusting...')
+            gs = GridSearchCV(self.model, adjust_param, cv=my_cv)
+            gs.fit(self.x_train, self.y_train)
+            self.params = gs.best_params_
+            print('Finish to adjust.')
+            print("参数的最佳取值：:", gs.best_params_)
+            
+            
+            
+            
+import xgboost
+import sklearn
+from code.BaseModel import BaseModel
+
+
+class XGBModel(BaseModel):
+    def __init__(self, data, y_name: str = None, params: dict = None):
+        super().__init__(data, y_name, params)
+        if self.params is None:
+            self.params = {'learning_rate': 0.1, 'n_estimators': 300, 'gamma': 0.05, 'max_depth': 7,
+                           'min_child_weight': 1, 'objective': 'multi:softmax', 'num_class': 4}
+
+    def _get_model(self):
+        return xgboost.XGBRFClassifier(**self.params)
