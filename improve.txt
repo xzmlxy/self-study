@@ -1,6 +1,104 @@
+from sklearn.base import BaseEstimator, clone
+from sklearn.model_selection import StratifiedKFold
+import numpy as np
+
+
+class StackingModel(BaseEstimator):
+    def __init__(self, base_models, meta_model, n_folds=5):
+        self.base_models = base_models
+        self.meta_model = meta_model
+        self.n_folds = n_folds
+        self.base_models_ = [list() for _ in self.base_models]
+        self.meta_model_ = clone(self.meta_model)
+
+    def fit(self, x, y):
+        self.base_models_ = [list() for _ in self.base_models]
+        self.meta_model_ = clone(self.meta_model)
+        skf = StratifiedKFold(n_splits=self.n_folds, random_state=10)
+        # 使用K-fold的方法来进行交叉验证，将每次验证的结果作为新的特征来进行处理
+        out_of_fold_predictions = np.zeros((x.shape[0], len(self.base_models)))
+        for i, model in enumerate(self.base_models):
+            for train_index, holdout_index in skf.split(x, y):
+                instance = model.clone()
+                self.base_models_[i].append(instance)
+                instance.fit(x[train_index], y[train_index])
+                y_predict = instance.predict(x[holdout_index])
+                out_of_fold_predictions[holdout_index, i] = y_predict
+        self.meta_model_.fit(out_of_fold_predictions, y)
+        return self
+
+    def predict(self, x_test):
+        meta_features = np.column_stack([
+            np.column_stack([model.predict(x_test) for model in base_models]).mean(axis=1)
+            for base_models in self.base_models_])
+        return self.meta_model_.predict(meta_features)
+        
+        
 
         
-        
+ from code.ensemble_model.StackingModel import StackingModel
+from code.models.BaseModel import BaseModel
+import lightgbm as lgb
+from code.models.LightGBModelWrapper import LightGBModel
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeRegressor
+import numpy as np
+
+
+class StackModelWrapper(BaseModel):
+    def __init__(self, models, y_name: str = None, params: dict = None, reg=False, model_class_name='LGB'):
+        super().__init__(y_name, params)
+        self.models = models
+        self.model_class_name = model_class_name
+        if model_class_name == 'LGB':
+            if reg:
+                if self.params is None:
+                    self.model = lgb.LGBMRegressor()
+
+                else:
+                    self.model = lgb.LGBMRegressor(**self.params)
+            else:
+                if self.params is None:
+                    self.model = lgb.LGBMClassifier()
+                else:
+                    self.model = lgb.LGBMClassifier(**self.params)
+            self.adjust_params = LightGBModel.LightGB_params
+        elif model_class_name == 'TREE':
+            if reg:
+                if self.params is None:
+                    self.model = DecisionTreeRegressor()
+                else:
+                    self.model = DecisionTreeRegressor(**self.params)
+            else:
+                if self.params is None:
+                    self.model = DecisionTreeClassifier()
+                else:
+                    self.model = DecisionTreeClassifier(**self.params)
+            self.adjust_params = {'max_depth': np.linspace(5, 9, 5, dtype=int),
+                                  'max_leaf_nodes': np.linspace(32, 128, 4, dtype=int)}
+        else:
+            print('Sorry,we will add more models in future.')
+
+    def _get_model(self, x_train, y_train, x_test, y_test):
+        if self.model is not None and self.models is not None:
+            model = StackingModel(self.models, self.model)
+            model.fit(x_train, y_train)
+            return model
+
+    def train(self, data, need_early_stop=True, select=True):
+        super().train(data, False, False)
+
+    def create_adjust_params(self):
+        return self.adjust_params
+
+
+
+
+    def clone(self):
+        if self.model is not None:
+            return clone(self.model)
+        else:
+            print('OPS! Clone nothing !')
         
         
  
