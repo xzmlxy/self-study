@@ -1,1 +1,9 @@
 
+    def get_params(self, deep=False):
+        params = {'alpha': self.alpha, 'num_iters': self.num_iters}
+        return params
+
+    def set_params(self, **parameters):
+        for parameter, value in parameters.items(): 
+            setattr(self, parameter, value)
+        return self
