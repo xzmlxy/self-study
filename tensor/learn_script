@@ -1,0 +1,207 @@
+import argparse
+import numpy as np
+import tensorflow as tf
+import sys
+import os
+import time
+import math
+
+from Parameter import FLAGS
+from DataLoader import input_ctc
+
+FLAGS.samples_dev = "/data2/lap/RNN-T/long4000.txt"  # test_king216 #test_aishell1 #test_aishell2
+FLAGS.data_key_dev = 'long4000'  #
+FLAGS.feat_type = 'fbank240'
+
+sys.path.append(os.path.dirname('../data/'))
+sys.path.append(os.path.dirname('../utils/'))
+
+gpu_id = -1
+os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+config = tf.ConfigProto()
+config.allow_soft_placement = True
+config.gpu_options.allow_growth = True
+
+parser = argparse.ArgumentParser("RNN-T Decoding")
+
+parser.add_argument('--maxlen-in', default=600, type=int, metavar='ML',
+                    help='Batch size is reduced if the input sequence length > ML')
+parser.add_argument('--maxlen-out', default=150, type=int, metavar='ML',
+                    help='Batch size is reduced if the output sequence length > ML')
+parser.add_argument('--beamsearch', default=False, type=bool,
+                    help='Use beamsearch or not')
+parser.add_argument('--beamsize', default=5, type=int,
+                    help='Beam size')
+
+
+def tensor_to_sparse(input_tensor, constant=0):
+    input_tensor = tf.cast(x=input_tensor, dtype=tf.int64)
+    sparse_indices = tf.where(tf.not_equal(input_tensor, tf.constant(constant, dtype=tf.int64)))
+    sparse_values = tf.gather_nd(params=input_tensor, indices=sparse_indices)
+    dense_shape = tf.cast(x=tf.shape(input_tensor), dtype=tf.int64)
+    sparse = tf.SparseTensor(indices=sparse_indices, values=sparse_values, dense_shape=dense_shape)
+    sparse = tf.cast(x=sparse, dtype=tf.int32)
+    return sparse
+
+
+def main(args):
+    # load 数据相关
+    Data_input = input_ctc()
+    batchs = Data_input.get_batchs()
+
+    # load 数据结束
+
+    # Encoder   Input_data example [None,None,71]==>[1,20,71]
+    Input_data = tf.placeholder(tf.float32, [1, 7, 71], name='encoder_input')
+    state = tf.placeholder(tf.float32, [1, 21504], name='state_input')
+    with tf.variable_scope("rnnt_encoder", reuse=tf.AUTO_REUSE, initializer=tf.glorot_normal_initializer):
+        # Define Network
+        input_data = tf.contrib.layers.conv1d(Input_data, 128, 3, stride=2, padding="VALID")
+        input_data = tf.contrib.layers.conv1d(input_data, 256, 3, stride=2, padding="VALID")
+        input_data = tf.transpose(input_data, (1, 0, 2))
+        input_data = tf.unstack(input_data)
+        cell = []
+        for i in range(8):
+            cell.append(
+                tf.nn.rnn_cell.LSTMCell(
+                    num_units=2048,
+                    num_proj=640,
+                    state_is_tuple=False,
+                    name="rnn_" + str(i)
+                )
+            )
+        stacked_rnn_cell = tf.contrib.rnn.MultiRNNCell(cell, state_is_tuple=False)
+        rnn_output, state_out = tf.nn.static_rnn(stacked_rnn_cell, inputs=input_data, dtype=tf.float32,
+                                                 initial_state=state, sequence_length=None)
+        # rnn_output, state_out = tf.nn.dynamic_rnn(stacked_rnn_cell, inputs=input_data, initial_state=state, dtype=tf.float32)
+        rnn_output = tf.stack(rnn_output, 0)
+        rnn_output = tf.transpose(rnn_output, (1, 0, 2))
+    tf.identity(rnn_output, name="encoder_ouput")
+    tf.identity(state_out, name="encoder_state")
+    print(state_out.shape)
+    # encoder end
+
+    # Prediction network  
+    #  上一个识别到的字 [None, None] ==> 举例  [beam,1] 
+    yi = tf.placeholder(tf.int32, [1, 1], name='prediction_input')
+    #  上一次保留的state [beam,5376] (1, 5376) 为什么是5376 我理解是 2*(640 + 2048)  state_tuple c和 h  从下面的逻辑可以看到是上次的送给当前
+    state_0 = tf.placeholder(tf.float32, [1, 5376], name='prediction_state_0')
+
+    # 4234是提供给你们的模型的字符表的大小 后期模型也可能是其他数字 不过差距不会超过1500
+    with tf.variable_scope("rnnt_prediction", reuse=tf.AUTO_REUSE, initializer=tf.glorot_normal_initializer):
+        embeddings = tf.get_variable("Variable", [4234, 512])
+        input_data = tf.nn.embedding_lookup(embeddings, yi)
+        input_data = tf.transpose(input_data, (1, 0, 2))
+        input_data = tf.unstack(input_data)
+        cell = []
+        for i in range(2):
+            cell.append(
+                tf.nn.rnn_cell.LSTMCell(
+                    num_units=2048,
+                    name="rnnlm_" + str(i),
+                    state_is_tuple=False,
+                    num_proj=640
+                )
+            )
+        stacked_rnn_cell = tf.contrib.rnn.MultiRNNCell(cell, state_is_tuple=False)
+        # ys, state_1 = tf.nn.dynamic_rnn(stacked_rnn_cell, inputs=input_data, initial_state=state_0)
+        ys, state_1 = tf.nn.static_rnn(stacked_rnn_cell, inputs=input_data, initial_state=state_0, sequence_length=None)
+        ys = tf.stack(ys, 0)
+    tf.identity(ys, name="prediction_output")
+    tf.identity(state_1, name="prediction_state_1")
+
+    # prediction end
+
+    # Joint network 
+    # U是encoder的输入[1,1,640]
+    U = tf.placeholder(tf.float32, [1, 640], name='input_U')
+    # V是prediction网络的输入 举例[1,1,640] 或者beam search下的[16,1,640]
+    V = tf.placeholder(tf.float32, [1, 640], name='input_V')
+
+    # 由于tf.tanh(encoder_output + prediction_output) batch维度上 encoder的输出 可能需要复制多份 如果是按照prediction  [16,1,640]
+    with tf.variable_scope("rnnt_joint", reuse=tf.AUTO_REUSE):
+        # expand dims
+        encoder_output = U
+        prediction_output = V
+        # encoder_output = tf.tile(encoder_output, (1,1,tf.shape(prediction_output)[2],1))
+        # prediction_output = tf.tile(prediction_output, (1,tf.shape(encoder_output)[1],1,1))
+        # joint net
+        encoder_output = tf.contrib.layers.fully_connected(encoder_output, 640, activation_fn=None)
+        # encoder_output = tf.layers.dense(inputs=encoder_output, units=640)
+        prediction_output = tf.contrib.layers.fully_connected(prediction_output, 640, activation_fn=None)
+        # prediction_output = tf.layers.dense(inputs=prediction_output, units=640)
+        rnnt_output = tf.tanh(encoder_output + prediction_output)
+        ytu = tf.contrib.layers.fully_connected(rnnt_output, 4234, activation_fn=None)
+        # ytu = tf.layers.dense(inputs=rnnt_output, units=4234)
+        ytu = tf.nn.log_softmax(ytu)
+        # joint netword end 
+    tf.identity(ytu, name="joint_output")
+
+    with tf.Session(config=config) as sess:
+        # session初始化  和加载模型
+        validation_handle = sess.run(Data_input.validation_iterator.string_handle())
+        sess.run(Data_input.validation_iterator.initializer)
+        sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver(max_to_keep=500)
+        saver.restore(sess, "./RNNT_model/model_7500h_spec_aug_for_pb")
+
+        # save_path = "./joint/"
+        # tf.saved_model.simple_save(sess, save_path, inputs={"input_U":U,"input_V":V}, outputs={"joint_output":ytu})
+        # save_path = "./encoder/"
+        # tf.saved_model.simple_save(sess, save_path, inputs={"encoder_input":Input_data, "state_input":state}, outputs={"encoder_ouput":rnn_output, "encoder_state":state_out})
+        # save_path = "./decoder/"
+        # tf.saved_model.simple_save(sess, save_path, inputs={"prediction_input":yi,"prediction_state_0":state_0}, outputs={"prediction_output":ys,"prediction_state_1":state_1})
+
+
+
+        Targets = tf.placeholder(tf.int32, [None, None])
+        rnnt_decode = tf.placeholder(tf.int32, [None, None])
+        cer = tf.edit_distance(tensor_to_sparse(rnnt_decode), tensor_to_sparse(Targets))
+
+        time_eval = 0
+        total_char = 0
+        total_err = 0
+        t1 = time.time()
+        # end
+        # b=0
+        print(batchs[1])
+        for step in range(batchs[1]):
+            padded_input, input_lengths, target_label, output_lengths, target_label_sub, output_lengths_sub = sess.run(
+                Data_input.fetch, feed_dict={Data_input.handle: validation_handle})
+
+            b = 0
+            frame_num = padded_input.shape[1]
+            steps = (int)((frame_num - 3) / 4)
+            y_i = [0]
+            state1 = np.zeros((1, 5376), dtype=np.float32)
+            stateout = np.zeros((1, 21504), dtype=np.float32)
+            V_i, state1 = sess.run([ys, state_1], feed_dict={yi: [y_i], state_0: np.zeros((1, 5376), dtype=np.float32)})
+            for i in range(1, steps):
+                feature = padded_input[:, i * 4 - 3:(i + 1) * 4, :]
+                enc, stateout = sess.run([rnn_output, state_out], feed_dict={Input_data: feature, state: stateout})
+                # V_i, state1 = sess.run([ys, state_1], feed_dict={yi: [y_i], state_0: np.zeros((1, 5376), dtype=np.float32)}) 
+                # print(stateout.shape)
+                for enc_xi in enc[0]:
+                    enc_xi = np.reshape(enc_xi, (1, 640))
+                    V_ii = np.reshape(V_i, (1, 640))
+                    ytu_i = sess.run(ytu, feed_dict={U: enc_xi, V: V_ii})  # joint network计算  
+                    a = np.argmax(ytu_i)
+                    if a != 0 and a != b:
+                        y_i.append(a)
+                        V_i, state1 = sess.run([ys, state_1], feed_dict={yi: [[a]], state_0: state1})
+                    b = a
+            error_num = sess.run(cer, feed_dict={Targets: target_label, rnnt_decode: [y_i[1:]]})
+            total_char += len(target_label[0])
+            total_err += error_num * len(target_label[0])
+            print(total_err / total_char)
+        t2 = time.time()
+        time_eval += t2 - t1
+        # log.close()
+        print("Decoding time is:")
+        print(time_eval)
+
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    print(args)
+    main(args)
