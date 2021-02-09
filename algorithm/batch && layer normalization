@@ -1,1 +1,2 @@
 batch normalization改变了输入数据的分布，把数据从原分布映射到了新的分布。这并不会影响训练出来的模型的性能，只是输入数据的分布不同而已。
+在处理序列任务上，一般使用layer normalization代替batch normalization，其目的和batch normalization是一样的：避免梯度消失，加快训练速度。
